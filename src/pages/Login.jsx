@@ -39,7 +39,7 @@ const loginSchema = z.object({
 const getHomeRoute = (role = "user") => {
   const routes = {
     admin: "/admin",
-    staff: "/staff",
+    staff: "/admin",
     user: "/",
   };
   return routes[role?.toLowerCase()] || "/";
