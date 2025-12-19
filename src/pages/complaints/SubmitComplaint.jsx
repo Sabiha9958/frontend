@@ -45,7 +45,7 @@ export const PRIORITY_OPTIONS = ["low", "medium", "high", "urgent"];
    CONFIG
 ================================================================ */
 const WS_URL =
-  import.meta.env.VITE_WS_URL || "ws://localhost:5000/ws/complaints";
+  import.meta.env.VITE_WS_URL || "wss://backend-h5g5.onrender.com/ws/complaints";
 const AUTO_REDIRECT_MS = 1200;
 
 /* ================================================================
