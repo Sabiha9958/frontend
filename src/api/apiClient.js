@@ -2,9 +2,9 @@
 import axios from "axios";
 import { TokenManager, clearAuth } from "../utils/storage";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://backend-h5g5.onrender.com";
 
-// IMPORTANT: VITE_API_URL should be "http://localhost:5000" (no /api)
+// IMPORTANT: VITE_API_URL should be "https://backend-h5g5.onrender.com" (no /api)
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   timeout: 30000,
