@@ -19,7 +19,7 @@ import {
 import { FcGoogle } from "react-icons/fc";
 import { TokenManager, UserManager } from "../utils/storage";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "https://backend-h5g5.onrender.com";
 
 // Validation schema
 const loginSchema = z.object({
