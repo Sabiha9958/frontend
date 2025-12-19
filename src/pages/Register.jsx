@@ -26,7 +26,7 @@ const API_URL = import.meta.env.VITE_API_URL || "https://backend-h5g5.onrender.c
 const getHomeRoute = (role = "user") => {
   const routes = {
     admin: "/admin",
-    staff: "/staff",
+    staff: "/admin",
     user: "/",
   };
   return routes[role?.toLowerCase()] || "/";
