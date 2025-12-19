@@ -451,7 +451,7 @@ export default function MyComplaints() {
   useEffect(() => {
     if (!user) return;
     const wsUrl =
-      import.meta.env.VITE_WS_URL || "ws://localhost:5000/ws/complaints";
+      import.meta.env.VITE_WS_URL || "wss://backend-h5g5.onrender.com/ws/complaints";
     const socket = new WebSocket(wsUrl);
 
     socket.onmessage = (event) => {
