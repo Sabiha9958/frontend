@@ -2,9 +2,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ComplaintAPI } from "../../api/complaints";
 import { UserAPI } from "../../api/users";
 
-const asNum = (v, fallback = 0) =>
-  Number.isFinite(Number(v)) ? Number(v) : fallback;
+const asNumOrNull = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 const asArray = (v) => (Array.isArray(v) ? v : []);
+
+const unwrap = (res) => res?.data ?? res;
+
+// tries many keys for total
+const pickTotal = (obj) =>
+  asNumOrNull(
+    obj?.totalUsers ??
+      obj?.totalUser ??
+      obj?.total ??
+      obj?.countTotal ??
+      obj?.pagination?.total ??
+      obj?.pagination?.totalItems ??
+      obj?.meta?.total
+  );
 
 export function useAdminDashboardData({ refreshMs = 60000 } = {}) {
   const [initialLoading, setInitialLoading] = useState(true);
@@ -14,7 +31,7 @@ export function useAdminDashboardData({ refreshMs = 60000 } = {}) {
   const [complaints, setComplaints] = useState([]);
   const [users, setUsers] = useState([]);
 
-  const [totals, setTotals] = useState({ totalUsers: 0, totalComplaints: 0 });
+  const [totals, setTotals] = useState({ totalUsers: null, totalComplaints: null });
   const [userStats, setUserStats] = useState(null);
   const [stats, setStats] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -29,70 +46,74 @@ export function useAdminDashboardData({ refreshMs = 60000 } = {}) {
     silent ? setRefreshing(true) : setInitialLoading(true);
 
     try {
-      const [cRes, uRes, uStatsRes, cStatsRes] = await Promise.all([
+      const [cResRaw, uResRaw, uStatsResRaw, cStatsResRaw] = await Promise.all([
         ComplaintAPI.getAll({ page: 1, limit: 25, sort: "-createdAt" }),
         UserAPI.getAll({ page: 1, limit: 25, sort: "-createdAt" }),
         UserAPI.getStats(),
         ComplaintAPI.getStats(),
       ]);
 
-      const cPayload = cRes?.data ?? cRes;
+      const cRes = unwrap(cResRaw);
+      const uRes = unwrap(uResRaw);
+      const uStatsRes = unwrap(uStatsResRaw);
+      const cStatsRes = unwrap(cStatsResRaw);
+
       const recentComplaints = asArray(
-        cPayload?.data?.complaints ?? cPayload?.complaints ?? cPayload
+        cRes?.data?.complaints ?? cRes?.complaints ?? cRes?.data ?? cRes
       );
 
-      const uPayload = uRes?.data ?? uRes;
       const recentUsers = asArray(
-        uPayload?.data?.users ?? uPayload?.users ?? uPayload
+        uRes?.data?.users ?? uRes?.users ?? uRes?.data ?? uRes
       );
 
-      const uStatsPayload = uStatsRes?.data ?? uStatsRes;
-      const us = uStatsPayload?.stats ?? uStatsPayload ?? {};
+      // user stats: allow both {stats:{...}} or direct object
+      const us = uStatsRes?.stats ?? uStatsRes?.data?.stats ?? uStatsRes?.data ?? uStatsRes ?? {};
+      const cs = cStatsRes?.stats ?? cStatsRes?.data?.stats ?? cStatsRes?.data ?? cStatsRes ?? {};
 
-      const cStatsPayload = cStatsRes?.data ?? cStatsRes;
-      const cs =
-        cStatsPayload?.stats ?? cStatsPayload?.data ?? cStatsPayload ?? {};
+      // IMPORTANT FIX: compute totals with fallback sources
+      const totalUsersFromStats = pickTotal(us);
+      const totalUsersFromList = pickTotal(uRes) ?? pickTotal(uRes?.data);
 
-      const totalUsers = asNum(us.totalUsers ?? us.total ?? 0, 0);
-      const totalComplaints = asNum(
-        cs.totalComplaints ?? cs.total ?? 0,
-        recentComplaints.length
-      );
+      const totalUsers =
+        totalUsersFromStats ?? totalUsersFromList ?? asNumOrNull(recentUsers.length);
+
+      const totalComplaints =
+        pickTotal(cs) ??
+        pickTotal(cRes) ??
+        pickTotal(cRes?.data) ??
+        asNumOrNull(recentComplaints.length);
 
       setComplaints(recentComplaints);
       setUsers(recentUsers);
 
       setUserStats({
         totalUsers,
-        activeUsers: us.activeUsers ?? us.active ?? null,
-        admins: us.admins ?? us.adminCount ?? null,
-        staff: us.staff ?? us.staffCount ?? null,
-        users: us.users ?? us.userCount ?? null,
+        activeUsers: asNumOrNull(us.activeUsers ?? us.active),
+        admins: asNumOrNull(us.admins ?? us.adminCount),
+        staff: asNumOrNull(us.staff ?? us.staffCount),
+        users: asNumOrNull(us.users ?? us.userCount),
       });
 
       setStats({
-        openCount: asNum(cs.openCount, 0),
-        pendingCount: asNum(cs.pendingCount, 0),
-        inProgressCount: asNum(cs.inProgressCount, 0),
-        resolvedCount: asNum(cs.resolvedCount, 0),
-        rejectedCount: asNum(cs.rejectedCount, 0),
-        closedCount: asNum(cs.closedCount, 0),
-        resolvedToday: asNum(cs.resolvedToday, 0),
-        completionRate: asNum(cs.completionRate, 0),
+        openCount: asNumOrNull(cs.openCount) ?? 0,
+        pendingCount: asNumOrNull(cs.pendingCount) ?? 0,
+        inProgressCount: asNumOrNull(cs.inProgressCount) ?? 0,
+        resolvedCount: asNumOrNull(cs.resolvedCount) ?? 0,
+        rejectedCount: asNumOrNull(cs.rejectedCount) ?? 0,
+        closedCount: asNumOrNull(cs.closedCount) ?? 0,
+        resolvedToday: asNumOrNull(cs.resolvedToday) ?? 0,
+        completionRate: asNumOrNull(cs.completionRate) ?? 0,
       });
 
       setTotals({ totalUsers, totalComplaints });
       setLastUpdated(new Date());
     } catch (e) {
-      setError(
-        e?.response?.data?.message ||
-          e?.message ||
-          "Failed to load dashboard data"
-      );
+      setError(e?.response?.data?.message || e?.message || "Failed to load dashboard data");
+
       if (!silent) {
         setComplaints([]);
         setUsers([]);
-        setTotals({ totalUsers: 0, totalComplaints: 0 });
+        setTotals({ totalUsers: null, totalComplaints: null });
         setUserStats(null);
         setStats(null);
       }
@@ -107,7 +128,7 @@ export function useAdminDashboardData({ refreshMs = 60000 } = {}) {
     fetchAll({ silent: false });
     const id = setInterval(() => fetchAll({ silent: true }), refreshMs);
     return () => clearInterval(id);
-  }, [fetchAll, refreshMs]); // interval cleanup prevents leaks [web:116]
+  }, [fetchAll, refreshMs]); // proper interval cleanup recommended [web:97]
 
   return {
     loading: initialLoading,
