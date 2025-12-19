@@ -43,7 +43,7 @@ const getAvatarColor = (name) => {
 const normalizeImageUrl = (url) => {
   if (!url || typeof url !== "string") return null;
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const apiBaseUrl = import.meta.env.VITE_API_URL || "https://backend-h5g5.onrender.com";
   const cleanUrl = url.startsWith("/api/") ? url.replace("/api/", "/") : url;
   return cleanUrl.startsWith("/")
     ? `${apiBaseUrl}${cleanUrl}`
