@@ -26,7 +26,7 @@ import {
 
 const LIMIT = 50;
 const WS_URL =
-  import.meta.env.VITE_WS_URL || "ws://localhost:5000/ws/complaints";
+  import.meta.env.VITE_WS_URL || "wss://backend-h5g5.onrender.com/ws/complaints";
 const WS_RECONNECT_INTERVAL = 5000;
 const WS_MAX_RETRIES = 5;
 
