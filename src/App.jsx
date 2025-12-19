@@ -1,31 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Activity, AlertCircle } from "lucide-react";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./context/AuthContext.jsx";
 
-import Navbar from "./components/layout/Navbar";
-import Footer from "./components/layout/Footer";
+import Navbar from "./components/layout/Navbar.jsx";
+import Footer from "./components/layout/Footer.jsx";
 
-import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import NotFound from "./pages/NotFound";
+import Home from "./pages/Home.jsx";
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import NotFound from "./pages/NotFound.jsx";
 
-import ForgotPasswordPage from "./pages/settings/ForgotPassword";
-import ResetPasswordPage from "./pages/settings/ResetPassword";
+import ForgotPasswordPage from "./pages/settings/ForgotPassword.jsx";
+import ResetPasswordPage from "./pages/settings/ResetPassword.jsx";
 
-import ProfilePage from "./pages/settings/ProfilePage";
-import SettingsPage from "./pages/Settings";
-import Complaints from "./pages/Complaint";
-import Admin from "./pages/Admin";
+import ProfilePage from "./pages/settings/ProfilePage.jsx";
+import SettingsPage from "./pages/Settings.jsx";
+import Complaints from "./pages/Complaint.jsx";
+import Admin from "./pages/Admin.jsx";
 
-import FAQ from "./pages/Docs/FAQ";
-import About from "./pages/Docs/About";
-import PrivacyPolicy from "./pages/Docs/PrivacyPolicy";
-import TermsOfService from "./pages/Docs/TermsOfService";
-import CookiePolicy from "./pages/Docs/CookiePolicy";
-import Accessibility from "./pages/Docs/Accessibility";
-import PublicDashboard from "./pages/Docs/PublicDashboard";
+import FAQ from "./pages/Docs/FAQ.jsx";
+import About from "./pages/Docs/About.jsx";
+import PrivacyPolicy from "./pages/Docs/PrivacyPolicy.jsx";
+import TermsOfService from "./pages/Docs/TermsOfService.jsx";
+import CookiePolicy from "./pages/Docs/CookiePolicy.jsx";
+import Accessibility from "./pages/Docs/Accessibility.jsx";
+import PublicDashboard from "./pages/Docs/PublicDashboard.jsx";
+
 
 // --------------------
 // UX helpers
