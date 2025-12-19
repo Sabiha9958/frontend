@@ -1,45 +1,63 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { AlertTriangle, FileText, ShieldCheck, Users } from "lucide-react";
 import Badge from "./ui/Badge";
 import { formatValue } from "./utils";
 
-const toNumber = (v) => {
+const toNumberOrNull = (v) => {
   if (v == null) return null;
   if (typeof v === "number" && Number.isFinite(v)) return v;
 
-  // handles "72", "72.5", "72%"
   const cleaned = String(v).replace("%", "").trim();
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 };
 
-const asText = (label, value) =>
+const line = (label, value) =>
   value == null ? `${label}: —` : `${label}: ${formatValue(value)}`;
 
 export default function BulletinBoard({ totals, userStats, stats, loading }) {
-  const open = toNumber(stats?.openCount);
-  const completion = toNumber(stats?.completionRate);
-  const totalComplaints = toNumber(totals?.totalComplaints);
-  const resolvedToday = toNumber(stats?.resolvedToday);
-  const totalUsers = toNumber(totals?.totalUsers);
-  const admins = toNumber(userStats?.admins);
+  const vm = useMemo(() => {
+    const open = toNumberOrNull(stats?.openCount);
+    const completion = toNumberOrNull(stats?.completionRate);
 
-  const completionText =
-    completion == null ? "Completion rate: —" : `Completion rate: ${completion.toFixed(0)}%`;
+    const totalComplaints = toNumberOrNull(totals?.totalComplaints);
+    const resolvedToday = toNumberOrNull(stats?.resolvedToday);
 
-  const opsBadge =
-    open != null && open > 10
-      ? { text: "Attention", variant: "rose" }
-      : { text: "Stable", variant: "amber" };
+    // IMPORTANT: prefer userStats.totalUsers if available
+    const totalUsers =
+      toNumberOrNull(userStats?.totalUsers) ?? toNumberOrNull(totals?.totalUsers);
+
+    const admins = toNumberOrNull(userStats?.admins);
+
+    const opsBadge =
+      open != null && open > 10
+        ? { text: "Attention", variant: "rose" }
+        : { text: "Stable", variant: "amber" };
+
+    return {
+      opsBadge,
+      open,
+      completion,
+      totalComplaints,
+      resolvedToday,
+      totalUsers,
+      admins,
+    };
+  }, [totals, userStats, stats]);
 
   const items = [
     {
       key: "ops",
       title: "Operations",
       icon: AlertTriangle,
-      badge: opsBadge.text,
-      badgeVariant: opsBadge.variant,
-      lines: [asText("Open items", open), completionText],
+      badge: vm.opsBadge.text,
+      badgeVariant: vm.opsBadge.variant,
+      lines: [
+        line("Open items", vm.open),
+        vm.completion == null
+          ? "Completion rate: —"
+          : `Completion rate: ${vm.completion.toFixed(0)}%`,
+      ],
     },
     {
       key: "complaints",
@@ -47,7 +65,7 @@ export default function BulletinBoard({ totals, userStats, stats, loading }) {
       icon: FileText,
       badge: "Live",
       badgeVariant: "emerald",
-      lines: [asText("Total complaints", totalComplaints), asText("Resolved today", resolvedToday)],
+      lines: [line("Total complaints", vm.totalComplaints), line("Resolved today", vm.resolvedToday)],
     },
     {
       key: "users",
@@ -55,7 +73,7 @@ export default function BulletinBoard({ totals, userStats, stats, loading }) {
       icon: Users,
       badge: "Directory",
       badgeVariant: "blue",
-      lines: [asText("Total users", totalUsers), asText("Admins", admins)],
+      lines: [line("Total users", vm.totalUsers), line("Admins", vm.admins)],
     },
     {
       key: "policy",
@@ -73,10 +91,7 @@ export default function BulletinBoard({ totals, userStats, stats, loading }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {items.map((it) => (
-        <div
-          key={it.key}
-          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-        >
+        <div key={it.key} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -91,9 +106,9 @@ export default function BulletinBoard({ totals, userStats, stats, loading }) {
                     <div className="h-4 w-32 rounded bg-gray-100 animate-pulse" />
                   </>
                 ) : (
-                  it.lines.map((line, idx) => (
+                  it.lines.map((txt, idx) => (
                     <p key={idx} className="text-sm text-gray-600">
-                      {line}
+                      {txt}
                     </p>
                   ))
                 )}
