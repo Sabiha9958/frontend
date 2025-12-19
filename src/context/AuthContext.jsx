@@ -24,12 +24,12 @@ export const useAuth = () => {
   return ctx;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "https://backend-h5g5.onrender.com";
 const ASSET_ORIGIN = (() => {
   try {
     return new URL(API_URL).origin;
   } catch {
-    return "http://localhost:5000";
+    return "https://backend-h5g5.onrender.com";
   }
 })();
 
