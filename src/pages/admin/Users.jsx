@@ -17,7 +17,7 @@ import {
   FiFilter,
 } from "react-icons/fi";
 
-// ====================== Utilities ======================
+/** ====================== Utilities ====================== */
 const getRoleBadgeStyle = (role) => {
   const styles = {
     admin: "bg-purple-100 text-purple-700 border-purple-300",
@@ -54,45 +54,67 @@ const normalizeImageUrl = (url) => {
     : `${apiBaseUrl}/uploads/${cleanUrl}`;
 };
 
-// Accepts either Axios response or your custom wrapper
-const unwrapApiResponse = (res) => {
-  // If interceptor returned {success, data, message}
-  if (res && typeof res === "object" && "success" in res) return res;
-
-  // If normal axios response
-  if (res && typeof res === "object" && "data" in res) {
-    const d = res.data;
-    if (d && typeof d === "object" && "success" in d) return d; // backend returns {success,...}
-    return { success: true, data: d }; // backend returns raw data
+/**
+ * Handles both:
+ * - axios response: { data: <payload>, status, ... }
+ * - custom wrapper: { success, data, message, ... }
+ */
+const unwrapApiResponse = (raw) => {
+  if (raw && typeof raw === "object" && "success" in raw) return raw;
+  if (raw && typeof raw === "object" && "data" in raw) {
+    const payload = raw.data;
+    if (payload && typeof payload === "object" && "success" in payload) return payload;
+    return { success: true, data: payload };
   }
-
   return { success: false, data: null, message: "Invalid API response" };
 };
 
+/**
+ * IMPORTANT FIX:
+ * Your backend seems to return pagination fields at top-level:
+ * { success, users:[], stats:{}, page, pages, total, count }
+ *
+ * So we must look for users at:
+ * - data.users
+ * - data.data (array)
+ * - data.data.users
+ */
 const extractUsersPayload = (data) => {
-  // supports:
-  // data = { users: [], pagination: {}, stats: {} }
-  // data = { data: [], pagination: {}, stats: {} }
-  // data = [] (plain list)
-  if (Array.isArray(data)) return { users: data, pagination: null, stats: null };
+  if (!data) return { list: [], stats: null, pages: 1 };
 
-  const users =
-    data?.users ||
-    data?.data ||
-    data?.results ||
-    data?.payload?.users ||
+  // direct list
+  if (Array.isArray(data)) return { list: data, stats: null, pages: 1 };
+
+  // try common placements
+  const list =
+    (Array.isArray(data.users) && data.users) ||
+    (Array.isArray(data.data) && data.data) ||
+    (Array.isArray(data.results) && data.results) ||
+    (Array.isArray(data?.data?.users) && data.data.users) ||
     [];
 
-  const pagination = data?.pagination || data?.meta?.pagination || null;
-  const stats = data?.stats || null;
+  const stats = data.stats || data?.data?.stats || null;
 
-  return { users: Array.isArray(users) ? users : [], pagination, stats };
+  // pages can be top-level or nested
+  const pages =
+    Number(data.pages) ||
+    Number(data?.pagination?.pages) ||
+    Number(data?.data?.pages) ||
+    1;
+
+  return { list, stats, pages };
 };
 
-// ====================== UI Pieces ======================
+const sortLatestFirst = (arr) =>
+  [...arr].sort(
+    (a, b) =>
+      new Date(b?.createdAt || b?.updatedAt || 0) -
+      new Date(a?.createdAt || a?.updatedAt || 0)
+  );
+
+/** ====================== UI ====================== */
 const Avatar = ({ user, size = "md" }) => {
   const sizeClass = size === "lg" ? "h-16 w-16 text-2xl" : "h-10 w-10 text-sm";
-
   const rawImage =
     user?.avatarPreview ||
     user?.profilePicture ||
@@ -225,7 +247,131 @@ const UserTableRow = ({ user, onEdit, onDelete, onToggleStatus }) => (
   </tr>
 );
 
-// ====================== Main ======================
+/** ====================== Modal (defined!) ======================
+ * If you already have EditUserModal in another file, import it instead.
+ * The key is: it MUST be defined/imported or you’ll get ReferenceError [web:58].
+ */
+const EditUserModal = ({ user, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    role: user?.role || "user",
+    phone: user?.phone || "",
+    department: user?.department || "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({ _id: user._id, ...form });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="font-bold text-gray-900">Edit user</div>
+          <button type="button" onClick={onClose} className="p-2">
+            <FiX />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name
+            </label>
+            <input
+              className="w-full rounded-lg border px-3 py-2"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              className="w-full rounded-lg border px-3 py-2"
+              value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+              required
+              type="email"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role
+              </label>
+              <select
+                className="w-full rounded-lg border px-3 py-2 bg-white"
+                value={form.role}
+                onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
+              >
+                <option value="user">User</option>
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone
+              </label>
+              <input
+                className="w-full rounded-lg border px-3 py-2"
+                value={form.phone}
+                onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Department
+            </label>
+            <input
+              className="w-full rounded-lg border px-3 py-2"
+              value={form.department}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, department: e.target.value }))
+              }
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-semibold"
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 rounded-lg bg-blue-600 text-white px-4 py-2 font-semibold disabled:opacity-50"
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/** ====================== Main ====================== */
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);
@@ -242,8 +388,8 @@ const Users = () => {
   const [editingUser, setEditingUser] = useState(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(t);
   }, [searchQuery]);
 
   useEffect(() => {
@@ -251,14 +397,12 @@ const Users = () => {
   }, [activeTab, debouncedSearch]);
 
   const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("page", String(currentPage));
-    params.set("limit", "40");
-
-    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
-    if (activeTab !== "all") params.set("role", activeTab);
-
-    return params.toString();
+    const p = new URLSearchParams();
+    p.set("page", String(currentPage));
+    p.set("limit", "40");
+    if (debouncedSearch.trim()) p.set("search", debouncedSearch.trim());
+    if (activeTab !== "all") p.set("role", activeTab);
+    return p.toString();
   }, [currentPage, activeTab, debouncedSearch]);
 
   useEffect(() => {
@@ -270,42 +414,28 @@ const Users = () => {
         const raw = await apiClient.get(`/auth/users?${queryString}`);
         const res = unwrapApiResponse(raw);
 
-        // Helpful when prod differs from local:
-        // comment out later
-        console.log("Users API raw:", raw);
-        console.log("Users API unwrapped:", res);
+        if (!res.success) throw new Error(res.message || "Failed to load users");
 
-        if (!res.success) {
-          throw new Error(res.message || "Failed to load users");
-        }
+        // FIX: your users/stats/pages are probably on the same object (res), not inside res.data only.
+        // So merge: take res.data if it’s an object, but keep top-level too.
+        const mergedPayload =
+          res?.data && typeof res.data === "object"
+            ? { ...res, ...res.data }
+            : res;
 
-        const { users: list, pagination, stats: st } = extractUsersPayload(
-          res.data
-        );
-
-        const sorted = [...list].sort(
-          (a, b) =>
-            new Date(b?.createdAt || b?.updatedAt || 0) -
-            new Date(a?.createdAt || a?.updatedAt || 0)
-        );
+        const { list, stats: st, pages } = extractUsersPayload(mergedPayload);
 
         if (!alive) return;
 
-        setUsers(sorted);
-        setStats(st);
-
-        const pages =
-          pagination?.pages ||
-          pagination?.totalPages ||
-          1;
-
+        setUsers(sortLatestFirst(list));
+        setStats(st || mergedPayload?.stats || null);
         setTotalPages(Number(pages) || 1);
       } catch (err) {
         if (!alive) return;
         toast.error(err?.message || "Failed to load users");
         setUsers([]);
-        setTotalPages(1);
         setStats(null);
+        setTotalPages(1);
       } finally {
         if (alive) setLoading(false);
       }
@@ -317,7 +447,51 @@ const Users = () => {
     };
   }, [queryString]);
 
-  // Keep your handlers (save/delete/toggle) mostly same, but unwrap response safely:
+  const handleSaveUser = async (updated) => {
+    try {
+      const payload = {
+        name: (updated.name || "").trim(),
+        email: (updated.email || "").trim(),
+        role: updated.role || "user",
+        phone: (updated.phone || "").trim(),
+        department: (updated.department || "").trim(),
+      };
+
+      const raw = await apiClient.put(`/auth/users/${updated._id}`, payload);
+      const res = unwrapApiResponse(raw);
+      if (!res.success) throw new Error(res.message || "Failed to update user");
+
+      // backend might return updated user in res.data
+      const updatedUser =
+        res.data?.user || res.data || payload;
+
+      setUsers((prev) =>
+        prev.map((u) => (u._id === updated._id ? { ...u, ...updatedUser } : u))
+      );
+
+      toast.success("User updated successfully");
+      setShowModal(false);
+      setEditingUser(null);
+    } catch (err) {
+      toast.error(err?.message || "Failed to update user");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("⚠️ Delete this user? This cannot be undone.")) return;
+
+    try {
+      const raw = await apiClient.delete(`/auth/users/${id}`);
+      const res = unwrapApiResponse(raw);
+      if (!res.success) throw new Error(res.message || "Failed to delete user");
+
+      setUsers((prev) => prev.filter((u) => u._id !== id));
+      toast.success("User deleted successfully");
+    } catch (err) {
+      toast.error(err?.message || "Failed to delete user");
+    }
+  };
+
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       const raw = await apiClient.put(`/auth/users/${id}`, {
@@ -332,21 +506,6 @@ const Users = () => {
       toast.success(`User ${!currentStatus ? "activated" : "deactivated"}`);
     } catch (err) {
       toast.error(err?.message || "Failed to update status");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("⚠️ Are you sure you want to delete this user?")) return;
-
-    try {
-      const raw = await apiClient.delete(`/auth/users/${id}`);
-      const res = unwrapApiResponse(raw);
-      if (!res.success) throw new Error(res.message || "Failed to delete user");
-
-      setUsers((prev) => prev.filter((u) => u._id !== id));
-      toast.success("🗑️ User deleted successfully");
-    } catch (err) {
-      toast.error(err?.message || "Failed to delete user");
     }
   };
 
@@ -463,6 +622,7 @@ const Users = () => {
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {!loading && users.length === 0 ? (
                   <tr>
@@ -551,12 +711,14 @@ const Users = () => {
         </div>
       </div>
 
-      {/* Keep your modal component as-is and call it here */}
       {showModal && editingUser && (
         <EditUserModal
           user={editingUser}
-          onClose={() => setShowModal(false)}
-          onSave={async () => {}}
+          onClose={() => {
+            setShowModal(false);
+            setEditingUser(null);
+          }}
+          onSave={handleSaveUser}
         />
       )}
     </div>
