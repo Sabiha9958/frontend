@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Users, Mail, ShieldCheck } from "lucide-react";
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
@@ -9,9 +9,20 @@ export default function TopUsersTable({
   limit = 25,
   loading = false,
   error = null,
+  title = "Top users",
 }) {
-  const safeUsers = Array.isArray(users) ? users : [];
-  const rows = safeUsers.slice(0, limit);
+  const list = Array.isArray(users) ? users : [];
+
+  const rows = useMemo(() => list.slice(0, limit), [list, limit]);
+
+  const metaText = useMemo(() => {
+    if (loading) return "Loading…";
+    if (error) return "Error";
+    if (list.length === 0) return "No users";
+    return `Showing latest ${rows.length}`;
+  }, [loading, error, list.length, rows.length]);
+
+  const showTable = !loading && !error && rows.length > 0;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -21,17 +32,22 @@ export default function TopUsersTable({
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
             <Users className="h-5 w-5" />
           </span>
-          <div>
-            <h3 className="text-base font-extrabold text-slate-900">Top users</h3>
-            <p className="text-xs font-medium text-slate-500">
-              Showing latest {Math.min(limit, safeUsers.length)}
-            </p>
+
+          <div className="min-w-0">
+            <h3 className="text-base font-extrabold text-slate-900 truncate">
+              {title}
+            </h3>
+            <p className="text-xs font-medium text-slate-500">{metaText}</p>
           </div>
         </div>
 
-        <Badge variant="blue">Latest</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="blue">Latest</Badge>
+          <Badge variant="slate">{list.length}</Badge>
+        </div>
       </div>
 
+      {/* Body */}
       <div className="border-t border-slate-100">
         {loading ? (
           <div className="p-5 space-y-3">
@@ -41,7 +57,7 @@ export default function TopUsersTable({
           </div>
         ) : error ? (
           <EmptyState title="Failed to load users" subtitle={String(error)} />
-        ) : rows.length ? (
+        ) : showTable ? (
           <>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -92,12 +108,16 @@ export default function TopUsersTable({
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-2">
                             <ShieldCheck className="h-4 w-4 text-slate-400" />
-                            <Badge variant="slate">{String(u?.role || "user")}</Badge>
+                            <Badge variant="slate">
+                              {String(u?.role || "user")}
+                            </Badge>
                           </span>
                         </td>
 
                         <td className="px-5 py-3">
-                          <Badge variant={u?.isActive === false ? "rose" : "emerald"}>
+                          <Badge
+                            variant={u?.isActive === false ? "rose" : "emerald"}
+                          >
                             {u?.isActive === false ? "Inactive" : "Active"}
                           </Badge>
                         </td>
@@ -113,12 +133,22 @@ export default function TopUsersTable({
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 text-xs text-slate-500">
-              <span>Users: {safeUsers.length}</span>
-              <span className="font-semibold text-slate-700">Showing: {rows.length}</span>
+              <span>Total users: {list.length}</span>
+              <span className="font-semibold text-slate-700">
+                Showing: {rows.length}
+              </span>
             </div>
           </>
         ) : (
           <EmptyState title="No users found" subtitle="Users will appear here once added." />
+        )}
+
+        {/* Dev-only hint: remove later */}
+        {import.meta.env.DEV && !loading && !error && (
+          <div className="px-5 pb-4 text-[11px] text-slate-400">
+            Debug: users prop type = {Array.isArray(users) ? "array" : typeof users},{" "}
+            length = {Array.isArray(users) ? users.length : "n/a"}
+          </div>
         )}
       </div>
     </section>
