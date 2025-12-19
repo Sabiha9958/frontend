@@ -8,7 +8,6 @@ import ProfileHeader from "../../components/Profile/ProfileHeader";
 import ProfileInfo from "../../components/Profile/ProfileInfo";
 import ProfileBio from "../../components/Profile/ProfileBio";
 import ProfileSidebar from "../../components/Profile/ProfileSidebar";
-
 import CoverSelector from "../../components/Profile/CoverSelector";
 import CoverDisplay from "../../components/Profile/CoverDisplay";
 
@@ -20,7 +19,7 @@ const buildForm = (u) => ({
   department: u?.department || "",
   location: u?.location || "",
   bio: u?.bio || "",
-  coverId: u?.coverId || 1,
+  coverId: Number(u?.coverId) || 1,
 });
 
 const ProfilePage = () => {
@@ -30,18 +29,21 @@ const ProfilePage = () => {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [coverSelectorOpen, setCoverSelectorOpen] = useState(false);
+
+  // only for UI preview, not persistence
   const [coverPreviewUrl, setCoverPreviewUrl] = useState(null);
+
   const [formData, setFormData] = useState(() => buildForm(user));
 
   useEffect(() => {
-    if (!user || isEditing) return;
+    if (!user) return;
+    if (isEditing) return; // don’t overwrite while editing
     setFormData(buildForm(user));
   }, [user, isEditing]);
 
-  const coverIdToShow = useMemo(
-    () => (isEditing ? formData.coverId : user?.coverId || 1),
-    [isEditing, formData.coverId, user?.coverId]
-  );
+  const coverIdToShow = useMemo(() => {
+    return isEditing ? formData.coverId : Number(user?.coverId) || 1;
+  }, [isEditing, formData.coverId, user?.coverId]);
 
   const completeness = useMemo(() => {
     const source = isEditing ? formData : user;
@@ -54,8 +56,9 @@ const ProfilePage = () => {
 
   const startEdit = useCallback(() => {
     setErrors({});
+    setFormData(buildForm(user));
     setIsEditing(true);
-  }, []);
+  }, [user]);
 
   const cancelEdit = useCallback(() => {
     setErrors({});
@@ -69,39 +72,32 @@ const ProfilePage = () => {
     setErrors((prev) => ({ ...prev, [field]: null }));
   }, []);
 
-  const openCoverSelector = useCallback(() => {
-    setCoverSelectorOpen(true);
-  }, []);
-
+  const openCoverSelector = useCallback(() => setCoverSelectorOpen(true), []);
   const closeCoverSelector = useCallback(() => {
     setCoverSelectorOpen(false);
     setCoverPreviewUrl(null);
   }, []);
 
-  const applyCover = useCallback(
+  const onSelectCover = useCallback(
     async (coverId) => {
+      const normalized = Number(coverId) || 1;
+
+      // Editing mode: only update local form, save when user presses "Save"
       if (isEditing) {
-        setFormData((prev) => ({ ...prev, coverId }));
-        toast.success(`Cover #${coverId} selected. Save profile to apply.`, {
-          toastId: "cover-selected",
-        });
-        return { success: true };
+        setFormData((prev) => ({ ...prev, coverId: normalized }));
+        toast.info("Cover selected. Click Save to apply.", { toastId: "cover-selected" });
+        return;
       }
 
+      // Not editing: save immediately
       setSaving(true);
       try {
-        const result = await updateProfile({ coverId });
-        if (!result?.success)
-          throw new Error(result?.message || "Update failed");
+        const result = await updateProfile({ coverId: normalized });
+        if (!result?.success) throw new Error(result?.message || "Update failed");
 
-        setCoverPreviewUrl(null);
-        toast.success("Cover applied!", { toastId: "cover-applied" });
-        return result;
+        toast.success("Cover updated!", { toastId: "cover-applied" });
       } catch (e) {
-        toast.error(e?.message || "Failed to update cover", {
-          toastId: "cover-error",
-        });
-        return { success: false, message: e?.message };
+        toast.error(e?.message || "Failed to update cover", { toastId: "cover-error" });
       } finally {
         setSaving(false);
       }
@@ -113,43 +109,31 @@ const ProfilePage = () => {
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors);
-      toast.error("Please fix validation errors", {
-        toastId: "validation-error",
-      });
+      toast.error("Please fix validation errors", { toastId: "validation-error" });
       return;
     }
 
     setSaving(true);
     try {
-      const result = await updateProfile(formData);
+      const payload = { ...formData, coverId: Number(formData.coverId) || 1 };
+      const result = await updateProfile(payload);
       if (!result?.success) throw new Error(result?.message || "Update failed");
 
       setIsEditing(false);
       setErrors({});
       setCoverPreviewUrl(null);
-      setFormData(buildForm(result.user || { ...user, ...formData }));
-
-      toast.success("Profile updated successfully!", {
-        toastId: "profile-updated",
-      });
+      toast.success("Profile updated successfully!", { toastId: "profile-updated" });
     } catch (e) {
-      toast.error(e?.message || "Failed to update profile", {
-        toastId: "update-error",
-      });
+      toast.error(e?.message || "Failed to update profile", { toastId: "update-error" });
     } finally {
       setSaving(false);
     }
-  }, [formData, updateProfile, user]);
+  }, [formData, updateProfile]);
 
   if (authLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <div className="text-center">
-          <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-indigo-600" />
-          <p className="text-lg font-semibold text-gray-700">
-            Loading your profile...
-          </p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin" />
       </div>
     );
   }
@@ -165,7 +149,7 @@ const ProfilePage = () => {
             previewUrl={coverPreviewUrl}
           />
 
-          {(saving || authLoading) && (
+          {saving && (
             <div className="absolute right-6 top-6 z-20 flex items-center gap-3 rounded-full bg-indigo-600 px-6 py-3 font-semibold text-white shadow-2xl">
               <Loader2 className="h-5 w-5 animate-spin" />
               Saving changes...
@@ -216,7 +200,7 @@ const ProfilePage = () => {
         currentCoverId={coverIdToShow}
         onPreview={(url) => setCoverPreviewUrl(url)}
         onSelect={async (coverId) => {
-          await applyCover(coverId);
+          await onSelectCover(coverId);
           closeCoverSelector();
         }}
       />
